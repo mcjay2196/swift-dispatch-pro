@@ -1,4 +1,10 @@
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { LazyMount } from "@/components/ui/lazy-mount";
+import {
+  OrderReturnsSummaryProvider,
+  useOrderReturnsSummaryQuery,
+} from "@/hooks/useOrderReturnsSummary";
 import { OrderCard } from "./OrderCard";
 import { SplitOrderGroupCard } from "./SplitOrderGroupCard";
 import { groupOrdersBySplit } from "./utils/groupOrdersBySplit";
@@ -103,10 +109,46 @@ export function OrderList({
   const groupedItems = groupOrdersBySplit(orders);
 
   return (
+    <OrdersListBody
+      orders={orders}
+      groupedItems={groupedItems}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onStatusUpdate={onStatusUpdate}
+      onNotesEdit={onNotesEdit}
+      onPaymentStatusUpdate={onPaymentStatusUpdate}
+      fetchNextPage={fetchNextPage}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+    />
+  );
+}
+
+function OrdersListBody({
+  orders,
+  groupedItems,
+  onEdit,
+  onDelete,
+  onStatusUpdate,
+  onNotesEdit,
+  onPaymentStatusUpdate,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+}: Omit<OrderListProps, 'isLoading' | 'hasActiveFilters' | 'onClearFilters'> & {
+  groupedItems: ReturnType<typeof groupOrdersBySplit<any>>;
+}) {
+  // ONE query for all returns on the loaded page instead of one per card
+  const orderIds = useMemo(() => orders.map((o) => o.id), [orders]);
+  const returnsSummary = useOrderReturnsSummaryQuery(orderIds);
+
+  return (
+    <OrderReturnsSummaryProvider value={returnsSummary}>
     <div className="space-y-4">
       {groupedItems.map((item) => {
         if (item.kind === 'group') {
           return (
+            <LazyMount key={`group-${item.master.id}`} placeholderHeight={180}>
             <SplitOrderGroupCard
               key={`group-${item.master.id}`}
               master={item.master as any}
@@ -117,11 +159,12 @@ export function OrderList({
               onNotesEdit={onNotesEdit}
               onPaymentStatusUpdate={onPaymentStatusUpdate}
             />
+            </LazyMount>
           );
         }
         return (
+          <LazyMount key={item.order.id} placeholderHeight={240}>
           <OrderCard
-            key={item.order.id}
             order={item.order}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -129,6 +172,7 @@ export function OrderList({
             onNotesEdit={onNotesEdit}
             onPaymentStatusUpdate={onPaymentStatusUpdate}
           />
+          </LazyMount>
         );
       })}
       {hasNextPage && (
@@ -151,5 +195,6 @@ export function OrderList({
         </div>
       )}
     </div>
+    </OrderReturnsSummaryProvider>
   );
 }

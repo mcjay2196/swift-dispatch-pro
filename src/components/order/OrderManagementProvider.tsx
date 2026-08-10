@@ -140,17 +140,52 @@ export function OrderManagementProvider({ children }: OrderManagementProviderPro
     }
   };
 
-  // Set up real-time subscription for order updates with email notifications
+  // Set up real-time subscription for order updates with email notifications.
+  // Invalidations and toasts are coalesced: a burst of order changes from other
+  // staff triggers ONE refresh and ONE toast instead of one per event.
   useEffect(() => {
-    console.log('Setting up real-time subscription for orders...');
+    let invalidateTimer: number | undefined;
+    let pendingStatusChanges = 0;
+    let pendingInserts = 0;
+    let lastOrderNumber = '';
+
+    const flush = () => {
+      invalidateTimer = undefined;
+
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity-orders'] });
+
+      if (pendingInserts > 0) {
+        toast({
+          title: pendingInserts === 1 ? "New Order Created" : "New Orders Created",
+          description: pendingInserts === 1
+            ? `Order ${lastOrderNumber} has been created`
+            : `${pendingInserts} new orders have been created`,
+        });
+      } else if (pendingStatusChanges > 0) {
+        toast({
+          title: "Orders Updated",
+          description: pendingStatusChanges === 1
+            ? `Order ${lastOrderNumber} changed status`
+            : `${pendingStatusChanges} orders changed status`,
+        });
+      }
+
+      pendingStatusChanges = 0;
+      pendingInserts = 0;
+      lastOrderNumber = '';
+    };
+
+    const scheduleFlush = () => {
+      if (invalidateTimer !== undefined) return;
+      invalidateTimer = window.setTimeout(flush, 1500);
+    };
+
     const channel = supabase
       .channel('orders-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async (payload) => {
-        console.log('Real-time order update received:', payload);
-
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
-        queryClient.invalidateQueries({ queryKey: ['opportunity-orders'] });
+        scheduleFlush();
 
         if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
           // Detect soft delete (deleted_at changed from null to a value)
@@ -176,10 +211,8 @@ export function OrderManagementProvider({ children }: OrderManagementProviderPro
             const newStatus = payload.new.status;
 
             if (oldStatus !== newStatus) {
-              toast({
-                title: "Order Status Updated",
-                description: `Order ${payload.new.order_number} changed from ${oldStatus} to ${newStatus}`
-              });
+              pendingStatusChanges += 1;
+              lastOrderNumber = payload.new.order_number;
 
               // Only send email notification when order status changes to loading
               if (newStatus === 'loading') {
@@ -195,10 +228,8 @@ export function OrderManagementProvider({ children }: OrderManagementProviderPro
         }
 
         if (payload.eventType === 'INSERT' && payload.new) {
-          toast({
-            title: "New Order Created",
-            description: `Order ${payload.new.order_number} has been created`
-          });
+          pendingInserts += 1;
+          lastOrderNumber = payload.new.order_number;
         }
 
         // Real-time auto-sync for INSERT/UPDATE is now handled by the order creation flow
@@ -207,10 +238,11 @@ export function OrderManagementProvider({ children }: OrderManagementProviderPro
       .subscribe();
 
     return () => {
-      console.log('Cleaning up real-time subscription...');
+      if (invalidateTimer !== undefined) window.clearTimeout(invalidateTimer);
       supabase.removeChannel(channel);
     };
   }, [queryClient, toast]);
+
 
   const contextValue: OrderManagementContextType = {
     // State

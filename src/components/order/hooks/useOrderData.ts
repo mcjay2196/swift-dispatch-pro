@@ -272,6 +272,9 @@ export function useOrderData(filters: OrderFilters = {}) {
     queryKey: ['orders', filters.searchQuery || '', filters.statusFilter || 'all', filters.paymentStatusFilter || 'all'],
     queryFn: ({ pageParam }) => fetchOrdersPage(pageParam, filters),
     initialPageParam: 0,
+    // Cap retained pages so "Load More" can't grow the tab's memory without
+    // bound (and so a refetch doesn't re-fetch every page ever loaded).
+    maxPages: 3,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       if (lastPage.length === PAGE_SIZE) {
         return lastPageParam + 1;
@@ -279,6 +282,7 @@ export function useOrderData(filters: OrderFilters = {}) {
       return undefined;
     },
   });
+
 
   // Flatten all pages into a single array
   const orders = useMemo(() => {

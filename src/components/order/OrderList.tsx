@@ -135,7 +135,9 @@ function OrdersListBody({
   fetchNextPage,
   hasNextPage,
   isFetchingNextPage,
-}: OrderListProps & { groupedItems: ReturnType<typeof groupOrdersBySplit<any>> }) {
+}: Omit<OrderListProps, 'isLoading' | 'hasActiveFilters' | 'onClearFilters'> & {
+  groupedItems: ReturnType<typeof groupOrdersBySplit<any>>;
+}) {
   // ONE query for all returns on the loaded page instead of one per card
   const orderIds = useMemo(() => orders.map((o) => o.id), [orders]);
   const returnsSummary = useOrderReturnsSummaryQuery(orderIds);

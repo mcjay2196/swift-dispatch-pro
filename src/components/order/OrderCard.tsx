@@ -14,7 +14,8 @@ import { StopCreditIndicator } from "@/components/customer/StopCreditIndicator";
 import { formatDeliveredDate } from "@/utils/dateTimeUtils";
 import { getOrderTypeColors, getOrderTypeLabel, getOrderTypeIcon } from "@/utils/orderTypeColors";
 import { getCustomerTypeColors } from "@/utils/customerTypeColors";
-import { useOrderReturns } from "@/hooks/useOrderReturns";
+import { useReturnSummary } from "@/hooks/useOrderReturnsSummary";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { calculateDisplayTotal } from "@/utils/totalCalculationUtils";
@@ -85,7 +86,11 @@ interface OrderCardProps {
 
 export function OrderCard({ order, onEdit, onDelete, onStatusUpdate, onNotesEdit, onPaymentStatusUpdate, variant = 'default' }: OrderCardProps) {
   const [showReturnDialog, setShowReturnDialog] = useState(false);
-  const { getReturnStats, invalidateReturns } = useOrderReturns();
+  const queryClient = useQueryClient();
+  const invalidateReturns = () => {
+    queryClient.invalidateQueries({ queryKey: ['order-returns'] });
+    queryClient.invalidateQueries({ queryKey: ['order-returns-summary'] });
+  };
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case "delivered":
@@ -157,8 +162,8 @@ export function OrderCard({ order, onEdit, onDelete, onStatusUpdate, onNotesEdit
 
   const { displayName, contactInfo, isCompany } = getDisplayInfo();
   
-  // Get return stats for this order
-  const returnStats = getReturnStats(order.id);
+  // Return summary comes from a single batched query for the whole list
+  const returnStats = useReturnSummary(order.id);
   
   // Get order type styling for badge
   const orderTypeColors = getOrderTypeColors(order.delivery_method);
@@ -431,13 +436,15 @@ export function OrderCard({ order, onEdit, onDelete, onStatusUpdate, onNotesEdit
         </Button>
       </div>
 
-      {/* Return Dialog */}
+      {/* Return Dialog — only mounted while open to keep the list light */}
+      {showReturnDialog && (
       <OrderReturnDialog
         open={showReturnDialog}
         onOpenChange={setShowReturnDialog}
         order={order}
         onReturnCreated={invalidateReturns}
       />
+      )}
     </div>
   );
 }

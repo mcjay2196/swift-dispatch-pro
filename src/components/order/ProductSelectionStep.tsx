@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,9 +198,16 @@ export function ProductSelectionStep({
     setLoading(false);
   }, [debouncedSearchQuery, selectedCategory, stockFilter]);
 
+  // Keep the latest loaders in refs so the realtime subscription is created
+  // ONCE on mount instead of being torn down and re-created on every keystroke.
+  const loadProductsRef = useRef(loadProducts);
+  loadProductsRef.current = loadProducts;
+  const loadCategoriesRef = useRef(loadCategories);
+  loadCategoriesRef.current = loadCategories;
+
   // Load categories and set up realtime subscription on mount
   useEffect(() => {
-    loadCategories();
+    loadCategoriesRef.current();
 
     // Set up realtime subscription with proper cleanup
     const channel = supabase
@@ -208,17 +215,15 @@ export function ProductSelectionStep({
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
         () => {
-          console.log('Products table changed, reloading...');
-          loadProducts();
+          loadProductsRef.current();
         }
       )
       .subscribe();
 
     return () => {
-      console.log('Cleaning up product selection subscription...');
       supabase.removeChannel(channel);
     };
-  }, [loadCategories, loadProducts]);
+  }, []);
 
   // Load products when search or category changes
   useEffect(() => {

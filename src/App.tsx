@@ -1,5 +1,6 @@
 import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider";
 import { AuthPage } from "@/components/auth/AuthPage";
@@ -32,17 +33,8 @@ import { TeamManagement } from "@/components/TeamManagement";
 import { SuburbManagement } from "@/components/SuburbManagement";
 import { Settings } from "@/components/Settings";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
-      refetchOnMount: false, // Don't refetch when component remounts
-      staleTime: 1000 * 60 * 5, // Data stays fresh for 5 minutes
-      gcTime: 1000 * 60 * 10, // Keep unused data in cache for 10 minutes
-      retry: 1, // Only retry failed requests once
-    },
-  },
-});
+
+
 
 function AuthenticatedApp() {
   const { user, session, loading: authLoading } = useAuth();

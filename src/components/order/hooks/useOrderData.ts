@@ -275,6 +275,9 @@ export function useOrderData(filters: OrderFilters = {}) {
     // Cap retained pages so "Load More" can't grow the tab's memory without
     // bound (and so a refetch doesn't re-fetch every page ever loaded).
     maxPages: 3,
+    // Each keystroke creates a distinct cache entry; free them quickly
+    // instead of retaining 50-order pages for the default 10 minutes.
+    gcTime: 60_000,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       if (lastPage.length === PAGE_SIZE) {
         return lastPageParam + 1;
